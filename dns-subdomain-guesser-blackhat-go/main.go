@@ -7,6 +7,7 @@ import (
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"os"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/miekg/dns"
@@ -15,6 +16,7 @@ import (
 type result struct {
 	IPAddress string
 	Hostname string
+	PathToA []string
 }
 
 type emptyStrut struct {}
@@ -66,8 +68,10 @@ func lookupCNAME(fqdn, dnsServer string) ([]string, error) {
 
 func lookup(fqdn, dnsServer string) results {
 	var answers results
+	var pathToA []string
 	var cfqdn = fqdn
 	for {
+		pathToA = append(pathToA, cfqdn)
 		cnames, err := lookupCNAME(cfqdn, dnsServer)
 		if err == nil && len(cnames) > 0 {
 			cfqdn = cnames[0]
@@ -83,10 +87,12 @@ func lookup(fqdn, dnsServer string) results {
 			answers = append(answers, result{
 				IPAddress: ip,
 				Hostname: fqdn,
+				PathToA: pathToA,
 			})
 		}
 		break // found the A
 	}
+	// log.Info("Path to A record: ", strings.Join(pathToA, " => "))
 	return answers
 }
 
@@ -160,9 +166,9 @@ func main() {
 	<-resultReady
 	close(resultReady)
 
-	w := tabwriter.NewWriter(os.Stdout, 0, 8, ' ', ' ', 0)
+	w := tabwriter.NewWriter(os.Stdout, 0, 4, ' ', ' ', 0)
 	for _, res := range finalResults {
-		fmt.Fprintf(w, "%s\t%s\n", res.Hostname, res.IPAddress)
+		fmt.Fprintf(w, "%s\t%s\t%s\n", res.Hostname, res.IPAddress, strings.Join(res.PathToA, " => "))
 	}
 	w.Flush()
 }
