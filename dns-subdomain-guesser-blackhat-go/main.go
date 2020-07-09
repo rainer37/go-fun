@@ -22,8 +22,10 @@ type result struct {
 type emptyStrut struct {}
 type results []result
 
-func lookupA(fqdn, dnsServer string) ([]string, error) {
-	var ips []string
+var ACache map[string]string
+
+func lookupA(fqdn, dnsServer string) (string, error) {
+	var ips string
 	var msg dns.Msg
 	msg.SetQuestion(dns.Fqdn(fqdn), dns.TypeA)
 	in, err := dns.Exchange(&msg, dnsServer)
@@ -38,7 +40,7 @@ func lookupA(fqdn, dnsServer string) ([]string, error) {
 
 	for _, answer := range in.Answer {
 		if ans, ok := answer.(*dns.A); ok {
-			ips = append(ips, ans.A.String())
+			ips = ans.A.String() // assume there is only one A
 			return ips, nil
 		}
 	}
@@ -72,25 +74,54 @@ func lookup(fqdn, dnsServer string) results {
 	var cfqdn = fqdn
 	for {
 		pathToA = append(pathToA, cfqdn)
+
+		if cachedAddr, ok := ACache[cfqdn]; ok {
+			log.Debugf("cache hit while looking for %s => %s", cfqdn, cachedAddr)
+			answers = append(answers, result{
+				IPAddress: cachedAddr,
+				Hostname: fqdn,
+				PathToA: pathToA,
+			})
+			break
+		}
+
 		cnames, err := lookupCNAME(cfqdn, dnsServer)
 		if err == nil && len(cnames) > 0 {
 			cfqdn = cnames[0]
 			//log.Info("found next cname ", cfqdn)
 			continue
 		}
-		ips, err := lookupA(cfqdn, dnsServer)
+
+		ip, err := lookupA(cfqdn, dnsServer)
 		if err != nil {
+			if log.GetLevel() == log.DebugLevel {
+				answers = append(answers, result{
+					IPAddress: "",
+					Hostname:  fqdn,
+					PathToA:   append(pathToA, "NOTHING"),
+				})
+			}
 			// log.Error("No A record found at the end")
 			break
 		}
-		for _, ip := range ips {
-			answers = append(answers, result{
-				IPAddress: ip,
-				Hostname: fqdn,
-				PathToA: pathToA,
-			})
+
+		answers = append(answers, result{
+			IPAddress: ip,
+			Hostname: fqdn,
+			PathToA: pathToA,
+		})
+
+		// populate cache
+		for _, path := range pathToA {
+			if cachedAddr, ok := ACache[path]; ok && cachedAddr != ip {
+				log.Errorf("interesting, different A destination found %s: [%s, %s]", path, cachedAddr, ip)
+			} else {
+				log.Debugf("Caching %s => %s", path, ip)
+				ACache[path] = ip
+			}
 		}
-		break // found the A
+
+		break // found the final A
 	}
 	// log.Info("Path to A record: ", strings.Join(pathToA, " => "))
 	return answers
@@ -107,11 +138,12 @@ func worker(tracker chan<- emptyStrut, inputQueries <-chan string, outputResults
 	tracker <- emptyStrut{}
 }
 
+func init() {
+	ACache = make(map[string]string) // A record cache
+	// log.SetLevel(log.DebugLevel)
+}
+
 func main() {
-
-	// lookup("buy.microsoft.com.cp.microsoft.com.nsatc.net", "8.8.8.8:53")
-
-	// os.Exit(1)
 	var (
 		targetDomain = flag.String("target-domain", "", "target main FQDN to search subdomians")
 		dnsServer    = flag.String("dns-server", "8.8.8.8:53", "designated DNS server address to use")
