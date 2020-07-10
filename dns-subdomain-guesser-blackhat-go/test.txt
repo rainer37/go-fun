@@ -1,5 +1,9 @@
 www
 buy
+purchase
+bought
+sale
+sell
 mail
 remote
 blog
@@ -8,4 +12,9 @@ server
 ns1
 ns2
 smtp
+web
 secure
+ww
+wwww
+wwwww
+w
