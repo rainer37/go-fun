@@ -8,6 +8,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"os"
 	"strings"
+	"sync"
 	"text/tabwriter"
 
 	"github.com/miekg/dns"
@@ -22,7 +23,12 @@ type result struct {
 type emptyStrut struct {}
 type results []result
 
-var ACache map[string]string
+type Cache struct {
+	cache map[string]string
+	lock sync.Mutex
+}
+
+var ACache Cache
 
 func lookupA(fqdn, dnsServer string) (string, error) {
 	var ips string
@@ -72,18 +78,21 @@ func lookup(fqdn, dnsServer string) results {
 	var answers results
 	var pathToA []string
 	var cfqdn = fqdn
+	log.Info("looking ", cfqdn)
 	for {
 		pathToA = append(pathToA, cfqdn)
-
-		if cachedAddr, ok := ACache[cfqdn]; ok {
+		ACache.lock.Lock()
+		if cachedAddr, ok := ACache.cache[cfqdn]; ok {
 			log.Debugf("cache hit while looking for %s => %s", cfqdn, cachedAddr)
 			answers = append(answers, result{
 				IPAddress: cachedAddr,
 				Hostname: fqdn,
 				PathToA: pathToA,
 			})
+			ACache.lock.Unlock()
 			break
 		}
+		ACache.lock.Unlock()
 
 		cnames, err := lookupCNAME(cfqdn, dnsServer)
 		if err == nil && len(cnames) > 0 {
@@ -112,17 +121,20 @@ func lookup(fqdn, dnsServer string) results {
 		})
 
 		// populate cache
+		ACache.lock.Lock()
 		for _, path := range pathToA {
-			if cachedAddr, ok := ACache[path]; ok && cachedAddr != ip {
+			if cachedAddr, ok := ACache.cache[path]; ok && cachedAddr != ip {
 				log.Errorf("interesting, different A destination found %s: [%s, %s]", path, cachedAddr, ip)
 			} else {
 				log.Debugf("Caching %s => %s", path, ip)
-				ACache[path] = ip
+				ACache.cache[path] = ip
 			}
 		}
+		ACache.lock.Unlock()
 
 		break // found the final A
 	}
+	log.Info("done ", cfqdn)
 	// log.Info("Path to A record: ", strings.Join(pathToA, " => "))
 	return answers
 }
@@ -130,17 +142,20 @@ func lookup(fqdn, dnsServer string) results {
 func worker(tracker chan<- emptyStrut, inputQueries <-chan string, outputResults chan<- results, dnsServer string) {
 	// log.Infof("worker stared using %s", dnsServer)
 	for fqdn := range inputQueries {
+		log.Info("worker doing ", fqdn)
 		answer := lookup(fqdn, dnsServer)
 		if len(answer) > 0 {
 			outputResults <- answer
 		}
+		log.Info("worker done ", fqdn)
 	}
+	log.Info("worker done")
 	tracker <- emptyStrut{}
 }
 
 func init() {
-	ACache = make(map[string]string) // A record cache
-	// log.SetLevel(log.DebugLevel)
+	ACache = Cache{make(map[string]string), sync.Mutex{}} // A record cache
+	log.SetLevel(log.DebugLevel)
 }
 
 func main() {
@@ -169,15 +184,10 @@ func main() {
 		log.Error(err)
 	}
 	defer fh.Close()
+	scanner := bufio.NewScanner(fh)
 
 	for i := 0; i < *numWorkers; i++ {
 		go worker(tracker, inputQueries, outputResults, *dnsServer)
-	}
-
-	scanner := bufio.NewScanner(fh)
-	for scanner.Scan() {
-		subdomain := fmt.Sprintf("%s.%s", scanner.Text(), *targetDomain)
-		inputQueries <- subdomain
 	}
 
 	go func() {
@@ -187,9 +197,16 @@ func main() {
 		resultReady <- emptyStrut{}
 	}()
 
+	for scanner.Scan() {
+		subdomain := fmt.Sprintf("%s.%s", scanner.Text(), *targetDomain)
+		inputQueries <- subdomain
+	}
+	log.Info("not stuck")
+
 	close(inputQueries)
 	for i := 0; i < *numWorkers; i++ {
 		<-tracker
+		//log.Info("out ", i)
 	}
 
 	close(outputResults)
@@ -199,6 +216,7 @@ func main() {
 	close(resultReady)
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 4, ' ', ' ', 0)
+	log.Info("# subdomains processed: ", len(finalResults))
 	for _, res := range finalResults {
 		fmt.Fprintf(w, "%s\t%s\t%s\n", res.Hostname, res.IPAddress, strings.Join(res.PathToA, " => "))
 	}
