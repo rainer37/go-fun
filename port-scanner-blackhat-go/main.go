@@ -52,7 +52,27 @@ func checkLocalDevice() {
 	}
 }
 
-func capture(iface, target string) {
+func analysisPacket(packet gopacket.Packet, target string) {
+	networkLayer := packet.NetworkLayer()
+	if networkLayer == nil {
+		return
+	}
+
+	transportLayer := packet.TransportLayer()
+	if transportLayer == nil {
+		return
+	}
+
+	srcHost := networkLayer.NetworkFlow().Src().String()
+	srcPort := transportLayer.TransportFlow().Src().String()
+
+	if srcHost != target {
+		return
+	}
+	results[srcPort]++ // found a bad port
+}
+
+func capture(iface, target string, started chan<- struct{}, ScanInitDone <-chan struct{}, captureDone chan<- struct{}) {
 	handle, err := pcap.OpenLive(iface, snaplen, promisc, timeout)
 	if err != nil {
 		log.Panic(err)
@@ -64,35 +84,30 @@ func capture(iface, target string) {
 	}
 
 	source := gopacket.NewPacketSource(handle, handle.LinkType())
-	log.Info("starting capture packets, link type: ", handle.LinkType())
+	log.Debug("starting capture packets, link type: ", handle.LinkType())
+
+	started <- struct{}{}
+	close(started)
 
 	// polling on the chan of packets from Packets()
-	for packet := range source.Packets() {
-		// log.Info("got a packet ", packet.String())
-		networkLayer := packet.NetworkLayer()
-		if networkLayer == nil {
-			continue
-		}
 
-		transportLayer := packet.TransportLayer()
-		if transportLayer == nil {
-			continue
+LOOP:
+	for {
+		select {
+		case <-ScanInitDone:
+			log.Debug("Scan Init Done signal received")
+			break LOOP
+		case packet := <- source.Packets():
+			analysisPacket(packet, target)
 		}
-
-		srcHost := networkLayer.NetworkFlow().Src().String()
-		srcPort := transportLayer.TransportFlow().Src().String()
-
-		if srcHost != target {
-			continue
-		}
-		results[srcPort]++ // found a bad port
 	}
+
+	log.Info("Capture existed")
+	captureDone <- struct{}{}
+	close(captureDone)
 }
 
-func main() {
-	go capture(*iface, *targetAddr) // start to capturing packets
-	time.Sleep(3 * time.Second)
-
+func scan(done chan<- struct{}, captureDone <-chan struct{}) {
 	ports := strings.Split(*ports, ",")
 	if len(ports) < 1 {
 		log.Error("needs comma separated list or ports")
@@ -103,16 +118,27 @@ func main() {
 		log.Info("Trying ", target)
 		c, err := net.DialTimeout("tcp", target, 2000 * time.Millisecond)
 		if err != nil {
-			log.Error(err)
+			log.Debug(err)
 			continue
 		}
 		c.Close()
 	}
-	time.Sleep(2 * time.Second)
+	done <- struct{}{}
+	close(done)
 
+	<- captureDone
 	for port, confidence := range results {
 		if confidence >= 1 {
 			log.Infof("Port %s open (confidence: %d)", port, confidence)
 		}
 	}
+}
+
+func main() {
+	stared := make(chan struct{})
+	scanInitDone := make(chan struct{})
+	captureDone := make(chan struct{})
+	go capture(*iface, *targetAddr, stared, scanInitDone, captureDone) // start to capturing packets
+	<- stared
+	scan(scanInitDone, captureDone)
 }
