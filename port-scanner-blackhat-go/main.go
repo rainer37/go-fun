@@ -16,7 +16,7 @@ var (
 	snaplen = int32(1600)
 	promisc = false
 	timeout = pcap.BlockForever
-	filter = "tcp[13] == 0x11 or tcp[13] == 0x10 or tcp[13] == 0x18"
+	filter = "tcp and src host %s && (tcp[13] == 0x11 or tcp[13] == 0x10 or tcp[13] == 0x18)"
 	devFound = false
 	results map[string]int
 
@@ -52,23 +52,8 @@ func checkLocalDevice() {
 	}
 }
 
-func analysisPacket(packet gopacket.Packet, target string) {
-	networkLayer := packet.NetworkLayer()
-	if networkLayer == nil {
-		return
-	}
-
-	transportLayer := packet.TransportLayer()
-	if transportLayer == nil {
-		return
-	}
-
-	srcHost := networkLayer.NetworkFlow().Src().String()
-	srcPort := transportLayer.TransportFlow().Src().String()
-
-	if srcHost != target {
-		return
-	}
+func scorePacket(packet gopacket.Packet) {
+	srcPort := packet.TransportLayer().TransportFlow().Src().String()
 	results[srcPort]++ // found a bad port
 }
 
@@ -79,7 +64,10 @@ func capture(iface, target string, started chan<- struct{}, ScanInitDone <-chan 
 	}
 	defer handle.Close()
 
-	if err := handle.SetBPFFilter(filter); err != nil {
+	realFilter := fmt.Sprintf(filter, target)
+	log.Info(realFilter)
+
+	if err := handle.SetBPFFilter(realFilter); err != nil {
 		log.Panic(err)
 	}
 
@@ -98,7 +86,7 @@ LOOP:
 			log.Debug("Scan Init Done signal received")
 			break LOOP
 		case packet := <- source.Packets():
-			analysisPacket(packet, target)
+			scorePacket(packet)
 		}
 	}
 
@@ -107,22 +95,37 @@ LOOP:
 	close(captureDone)
 }
 
+func scanOne(port string, scanner chan<- struct{}) {
+	defer func() {
+		scanner <- struct {}{}
+	}()
+
+	target := fmt.Sprintf("%s:%s", *targetAddr, port)
+	log.Infof("Trying %s", target)
+	c, err := net.DialTimeout("tcp", target, 1000 * time.Millisecond)
+	if err != nil {
+		log.Debug(err)
+		return
+	}
+	c.Close()
+}
+
 func scan(done chan<- struct{}, captureDone <-chan struct{}) {
 	ports := strings.Split(*ports, ",")
 	if len(ports) < 1 {
 		log.Error("needs comma separated list or ports")
 	}
 
+	scanner := make(chan struct{}, len(ports))
+
 	for _, port := range ports {
-		target := fmt.Sprintf("%s:%s", *targetAddr, port)
-		log.Info("Trying ", target)
-		c, err := net.DialTimeout("tcp", target, 2000 * time.Millisecond)
-		if err != nil {
-			log.Debug(err)
-			continue
-		}
-		c.Close()
+		go scanOne(port, scanner)
 	}
+
+	for range ports {
+		<- scanner
+	}
+
 	done <- struct{}{}
 	close(done)
 
