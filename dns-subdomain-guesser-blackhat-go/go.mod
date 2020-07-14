@@ -1,4 +1,4 @@
-module github.com/rainer37/go-sec-fun/dns-subdomain-guesser-blackhat-go
+module github.com/rainer37/go-fun/dns-subdomain-guesser-blackhat-go
 
 go 1.14
 

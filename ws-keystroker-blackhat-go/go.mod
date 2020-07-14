@@ -1,4 +1,4 @@
-module github.com/rainer37/go-sec-fun/ws-keystroker-blackhat-go
+module github.com/rainer37/go-fun/ws-keystroker-blackhat-go
 
 go 1.14
 

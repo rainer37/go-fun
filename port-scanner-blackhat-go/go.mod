@@ -1,4 +1,4 @@
-module github.com/rainer37/go-sec-fun/port-scanner-blackhat-go
+module github.com/rainer37/go-fun/port-scanner-blackhat-go
 
 go 1.14
 

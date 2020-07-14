@@ -1,2 +1,2 @@
-# go-sec-fun
-Interesting small security projects picked up from my learning path
+# go-fun
+Interesting small Go projects picked up from my learning path
