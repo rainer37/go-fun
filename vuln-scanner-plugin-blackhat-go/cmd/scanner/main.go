@@ -1,15 +1,21 @@
 package main
 
 import (
+	"flag"
 	"io/ioutil"
 	"log"
 	"os"
+	"path/filepath"
 	"plugin"
 
-	"github.com/rainer37/go-fun/vuln-scanner-plugin-blackhat-go/scanner"
+	"github.com/blackhat-go/bhg/ch-10/plugin-core/scanner"
 )
 
-const PluginsDir = "../../plugins"
+var PluginsDir string
+
+func init()  {
+	PluginsDir = *flag.String("plugin-dir", "../../plugins", "the directory to find so files")
+}
 
 func main() {
 	var (
@@ -26,8 +32,13 @@ func main() {
 	}
 
 	for idx := range files {
-		log.Println("Found plugins: " + files[idx].Name())
-		if p, err = plugin.Open(PluginsDir + "/" + files[idx].Name()); err != nil {
+		soFile := files[idx].Name()
+		if filepath.Ext(soFile) != ".so" {
+			continue
+		}
+
+		log.Println("Found plugins: " + soFile)
+		if p, err = plugin.Open(PluginsDir + "/" + soFile); err != nil {
 			log.Fatalln(err)
 		}
 
