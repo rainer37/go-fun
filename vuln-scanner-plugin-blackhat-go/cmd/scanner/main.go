@@ -6,8 +6,6 @@ import (
 	"os"
 	"plugin"
 
-	//"../../scanner"
-
 	"github.com/rainer37/go-fun/vuln-scanner-plugin-blackhat-go/scanner"
 )
 
