@@ -28,8 +28,8 @@ var scannerMap = map[uint64] string {
 
 func init()  {
 	PluginsDir = flag.String("plugin-dir", "../../plugins", "the directory to find so files")
-	hosts = flag.String("host", "10.0.1.20,10.0.2.88", "host address list to scan")
-	ports = flag.String("port", "8080,80", "interested port number list")
+	hosts = flag.String("hosts", "10.0.1.20,10.0.2.88", "host address list to scan")
+	ports = flag.String("ports", "8080,80", "interested port number list")
 	flag.Parse()
 	log.Println(*PluginsDir, *hosts, *ports)
 }
@@ -71,9 +71,9 @@ func scan(host string, portString string)  {
 	res := checker.Check(host, port)
 
 	if res.Vulnerable {
-		log.Println("Host is vulnerable: " + res.Details)
+		log.Println(host, "Host is vulnerable: " + res.Details)
 	} else {
-		log.Println("Host is NOT vulnerable")
+		log.Println(host, ", Host is NOT vulnerable")
 	}
 }
 
