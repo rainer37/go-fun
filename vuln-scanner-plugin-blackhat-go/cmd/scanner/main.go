@@ -6,6 +6,7 @@ import (
 	"plugin"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/blackhat-go/bhg/ch-10/plugin-core/scanner"
 )
@@ -14,11 +15,13 @@ var (
 	PluginsDir *string
 	hosts *string
 	ports *string
+	wg sync.WaitGroup
 )
 
 var scannerMap = map[uint64] string {
 	21: "ftp.so",
 	22: "ssh.so",
+	2222: "ssh.so",
 	8080: "tomcat.so",
 	80: "tomcat.so",
 }
@@ -56,11 +59,14 @@ func loadScanner(port uint64) scanner.Checker {
 }
 
 func scan(host string, portString string)  {
+	log.Printf("Scanning [%s:%s]", host, portString)
+
+	defer wg.Done()
+
 	port, err := strconv.ParseUint(portString, 10, 64)
 	if err != nil {
 		log.Fatalln(err)
 	}
-
 	checker := loadScanner(port)
 	res := checker.Check(host, port)
 
@@ -75,8 +81,9 @@ func main() {
 	log.Println("start scanning...")
 	for _, host := range strings.Split(*hosts, ",") {
 		for _, portString := range strings.Split(*ports, ",") {
-			log.Printf("Scanning [%s:%s\n]", host, portString)
-			scan(host, portString)
+			wg.Add(1)
+			go scan(host, portString)
 		}
 	}
+	wg.Wait()
 }
