@@ -1,53 +1,89 @@
 package main
 
 import (
-	"io/ioutil"
+	"flag"
 	"log"
-	"os"
 	"plugin"
+	"strconv"
+	"strings"
+	"sync"
 
-	//"../../scanner"
-
-	"github.com/rainer37/go-fun/vuln-scanner-plugin-blackhat-go/scanner"
+	"github.com/blackhat-go/bhg/ch-10/plugin-core/scanner"
 )
 
-const PluginsDir = "../../plugins"
+var (
+	PluginsDir *string
+	hosts *string
+	ports *string
+	wg sync.WaitGroup
+)
 
-func main() {
-	var (
-		files []os.FileInfo
-		err error
-		p *plugin.Plugin
-		n plugin.Symbol
-		check scanner.Checker
-		res *scanner.Result
-	)
+var scannerMap = map[uint64] string {
+	21: "ftp.so",
+	22: "ssh.so",
+	2222: "ssh.so",
+	8080: "tomcat.so",
+	80: "tomcat.so",
+}
 
-	if files, err = ioutil.ReadDir(PluginsDir); err != nil {
+func init()  {
+	PluginsDir = flag.String("plugin-dir", "../../plugins", "the directory to find so files")
+	hosts = flag.String("hosts", "10.0.1.20,10.0.2.88", "host address list to scan")
+	ports = flag.String("ports", "8080,80", "interested port number list")
+	flag.Parse()
+	log.Println(*PluginsDir, *hosts, *ports)
+}
+
+func loadScanner(port uint64) scanner.Checker {
+	soFile, ok := scannerMap[port]
+	if !ok {
+		log.Fatalln("no such plan for port ", port)
+	}
+
+	p, err := plugin.Open(*PluginsDir + "/" + soFile)
+	if err != nil {
 		log.Fatalln(err)
 	}
 
-	for idx := range files {
-		log.Println("Found plugins: " + files[idx].Name())
-		if p, err = plugin.Open(PluginsDir + "/" + files[idx].Name()); err != nil {
-			log.Fatalln(err)
-		}
+	n, err := p.Lookup("New")
+	if err != nil {
+		log.Fatalln(err)
+	}
 
-		if n, err = p.Lookup("New"); err != nil {
-			log.Fatalln(err)
-		}
+	newFunc, ok := n.(func() scanner.Checker)
+	if !ok {
+		log.Fatalln("Plugin entry point is no good. Expecting: func New() scanner.Checker")
+	}
 
-		newFunc, ok := n.(func() scanner.Checker)
-		if !ok {
-			log.Fatalln("Plugin entry point is no good. Expecting: func New() scanner.Checker")
-		}
+	return newFunc()
+}
 
-		check = newFunc()
-		res = check.Check("10.0.1.20", 8080)
-		if res.Vulnerable {
-			log.Println("Host is vulnerable: " + res.Details)
-		} else {
-			log.Println("Host is NOT vulnerable")
+func scan(host string, portString string)  {
+	log.Printf("Scanning [%s:%s]", host, portString)
+
+	defer wg.Done()
+
+	port, err := strconv.ParseUint(portString, 10, 64)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	checker := loadScanner(port)
+	res := checker.Check(host, port)
+
+	if res.Vulnerable {
+		log.Println(host, "Host is vulnerable: " + res.Details)
+	} else {
+		log.Println(host, ", Host is NOT vulnerable")
+	}
+}
+
+func main() {
+	log.Println("start scanning...")
+	for _, host := range strings.Split(*hosts, ",") {
+		for _, portString := range strings.Split(*ports, ",") {
+			wg.Add(1)
+			go scan(host, portString)
 		}
 	}
+	wg.Wait()
 }
