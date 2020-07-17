@@ -12,7 +12,7 @@ import (
 
 const (
 	certDir = "certs"
-	clientCertFile = certDir + "/clientCrt.pem"
+	clientCertFile = certDir + "/../../client/certs/clientCrt.pem"
 	serverCertFile = certDir + "/serverCrt.pem"
 	serverKeyFile = certDir + "/serverKey.pem"
 )
@@ -23,7 +23,7 @@ var (
 )
 
 func helloHandler(w http.ResponseWriter, r *http.Request) {
-	log.Info("Hello ", r.TLS.PeerCertificates[0].Subject.CommonName)
+	log.Infof("Hello %#v", r.TLS.PeerCertificates[0].Subject.CommonName)
 	fmt.Fprintln(w, "AuthN successfully: ", r.RemoteAddr)
 }
 
