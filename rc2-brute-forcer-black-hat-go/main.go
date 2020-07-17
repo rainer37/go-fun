@@ -4,9 +4,11 @@ import (
 	"crypto/cipher"
 	"encoding/binary"
 	"encoding/hex"
+	"fmt"
 	"github.com/joeljunstrom/go-luhn"
 	"github.com/rainer37/go-func/rc2-brute-forcer-black-hat-go/rc2"
 	log "github.com/sirupsen/logrus"
+	"os"
 	"regexp"
 	"sync"
 )
@@ -67,9 +69,9 @@ func decrypt(ciphertext []byte, in <-chan *CryptoData, done chan struct{}, wg *s
 			case <-done:
 				return
 			default:
-				data.block.Decrypt(plaintext[:size], ciphertext[:size])
+				data.rc2Decrypt(plaintext, ciphertext, 0)
 				if numericPattern.Match(plaintext[:size]) {
-					data.block.Decrypt(plaintext[size:], ciphertext[size:])
+					data.rc2Decrypt(plaintext, ciphertext, size)
 					if luhn.Valid(string(plaintext)) && numericPattern.Match(plaintext[size:]) {
 						log.Infof("Card [%s] found using key [%x]", plaintext, data.key)
 						close(done)
@@ -79,6 +81,41 @@ func decrypt(ciphertext []byte, in <-chan *CryptoData, done chan struct{}, wg *s
 			}
 		}
 	}()
+}
+
+func (cd CryptoData) rc2Decrypt(dst, ciphertext []byte, offset int)  {
+	cd.block.Decrypt(dst[offset:], ciphertext[offset:])
+}
+
+func (cd CryptoData) rc2EncryptOneBlock(ciphertext, src []byte, offset int) {
+	cd.block.Encrypt(ciphertext[offset:], src[offset:])
+}
+
+func (cd CryptoData) rc2Encrypt(ciphertext []byte, src []byte) {
+	if cap(ciphertext) < len(src) {
+		panic("dst is too small")
+	}
+	if len(src) % rc2.BlockSize != 0 {
+		panic("TODO needs to add padding")
+	}
+
+	for offset := 0; offset < len(src); offset += rc2.BlockSize {
+		cd.rc2EncryptOneBlock(ciphertext, src, offset)
+	}
+}
+
+func encryptWithRC2(plain string, rc2key uint64) string {
+	key := keyCut5Bytes(rc2key)
+	block, err := rc2.New(key[:], Rc2KeyLen)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	cd := CryptoData{block, key[:]}
+
+	ciph := make([]byte, 16)
+	cd.rc2Encrypt(ciph, []byte(plain))
+
+	return fmt.Sprintf("%x", ciph)
 }
 
 func main() {
@@ -121,4 +158,5 @@ func main() {
 	close(work)
 	consWg.Wait()
 	log.Info("Brute-force complete")
+	os.Exit(1)
 }
