@@ -16,7 +16,8 @@ import (
 var numericPattern = regexp.MustCompile(`^\d{8}$`)
 
 const (
-	cipher0   = "0986f2cc1ebdc5c2e25d04a136fa1a6b"
+	card0 = "4532651325506680"
+	//cipher0   = "0986f2cc1ebdc5c2e25d04a136fa1a6b"
 	Rc2KeyLen = 40
 	numProd   = 75
 	numCons   = 30
@@ -58,7 +59,6 @@ func generate(start, end uint64, out chan<- *CryptoData, done <-chan struct{}, w
 }
 
 func decrypt(ciphertext []byte, in <-chan *CryptoData, done chan struct{}, wg *sync.WaitGroup) {
-	size := rc2.BlockSize
 	plaintext := make([]byte, len(ciphertext)) // same len as cipher
 
 	wg.Add(1)
@@ -69,21 +69,37 @@ func decrypt(ciphertext []byte, in <-chan *CryptoData, done chan struct{}, wg *s
 			case <-done:
 				return
 			default:
-				data.rc2Decrypt(plaintext, ciphertext, 0)
-				if numericPattern.Match(plaintext[:size]) {
-					data.rc2Decrypt(plaintext, ciphertext, size)
-					if luhn.Valid(string(plaintext)) && numericPattern.Match(plaintext[size:]) {
-						log.Infof("Card [%s] found using key [%x]", plaintext, data.key)
-						close(done)
-						return
-					}
+				if data.rc2DecryptWithCondition(plaintext, ciphertext, 16, numericPattern.Match, luhn.Valid) {
+					log.Infof("Card [%s] found using key [%x]", plaintext, data.key)
+					close(done)
+					return
 				}
 			}
 		}
 	}()
 }
 
-func (cd CryptoData) rc2Decrypt(dst, ciphertext []byte, offset int)  {
+// iterate through decrypted ciphers to check with probe and validate functions within cipherLen
+func (cd CryptoData) rc2DecryptWithCondition(dst, ciphertext []byte, cipherLen int, probe func([]byte) bool, validate func(string) bool) bool {
+	size := rc2.BlockSize
+	if cap(dst) < cipherLen {
+		log.Fatalln("dst too small to hold decrypted plaintext")
+	}
+
+	cd.rc2Decrypt(dst, ciphertext, 0)
+	if !probe(dst[:size]) {
+		return false
+	}
+	for offset := size; offset < cipherLen; offset += size {
+		cd.rc2Decrypt(dst, ciphertext, offset)
+		if !probe(dst[offset:offset+size]) || !validate(string(dst)) {
+			return false
+		}
+	}
+	return true
+}
+
+func (cd CryptoData) rc2Decrypt(dst, ciphertext []byte, offset int) {
 	cd.block.Decrypt(dst[offset:], ciphertext[offset:])
 }
 
@@ -95,7 +111,7 @@ func (cd CryptoData) rc2Encrypt(ciphertext []byte, src []byte) {
 	if cap(ciphertext) < len(src) {
 		panic("dst is too small")
 	}
-	if len(src) % rc2.BlockSize != 0 {
+	if len(src)%rc2.BlockSize != 0 {
 		panic("TODO needs to add padding")
 	}
 
@@ -119,7 +135,7 @@ func encryptWithRC2(plain string, rc2key uint64) string {
 }
 
 func main() {
-	ciphertext, err := hex.DecodeString(cipher0)
+	ciphertext, err := hex.DecodeString(encryptWithRC2(card0, 988158147510))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -145,10 +161,11 @@ func main() {
 		end += step
 		start += step
 	}
-	generate(988158147510, 988158147510, work, done, &prodWg) // [e612d0bbb6]
+	// generate(988158147510, 988158147510, work, done, &prodWg) // [e612d0bbb6]
 
 	log.Info("Producers ready!")
 	log.Info("starting consumers...")
+
 	for i := 0; i < numCons; i++ {
 		decrypt(ciphertext, work, done, &consWg)
 	}
