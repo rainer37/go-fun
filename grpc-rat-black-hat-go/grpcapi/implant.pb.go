@@ -7,7 +7,11 @@
 package grpcapi
 
 import (
+	context "context"
 	proto "github.com/golang/protobuf/proto"
+	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -136,9 +140,7 @@ var file_implant_proto_rawDesc = []byte{
 	0x45, 0x6d, 0x70, 0x74, 0x79, 0x12, 0x30, 0x0a, 0x0c, 0x46, 0x65, 0x74, 0x63, 0x68, 0x43, 0x6f,
 	0x6d, 0x6d, 0x61, 0x6e, 0x64, 0x12, 0x0e, 0x2e, 0x67, 0x72, 0x70, 0x63, 0x61, 0x70, 0x69, 0x2e,
 	0x45, 0x6d, 0x70, 0x74, 0x79, 0x1a, 0x10, 0x2e, 0x67, 0x72, 0x70, 0x63, 0x61, 0x70, 0x69, 0x2e,
-	0x43, 0x6f, 0x6d, 0x6d, 0x61, 0x6e, 0x64, 0x42, 0x11, 0x5a, 0x0f, 0x69, 0x6d, 0x70, 0x6c, 0x61,
-	0x6e, 0x74, 0x2f, 0x67, 0x72, 0x70, 0x63, 0x61, 0x70, 0x69, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74,
-	0x6f, 0x33,
+	0x43, 0x6f, 0x6d, 0x6d, 0x61, 0x6e, 0x64, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -221,4 +223,192 @@ func file_implant_proto_init() {
 	file_implant_proto_rawDesc = nil
 	file_implant_proto_goTypes = nil
 	file_implant_proto_depIdxs = nil
+}
+
+// Reference imports to suppress errors if they are not otherwise used.
+var _ context.Context
+var _ grpc.ClientConnInterface
+
+// This is a compile-time assertion to ensure that this generated file
+// is compatible with the grpc package it is being compiled against.
+const _ = grpc.SupportPackageIsVersion6
+
+// AdminClient is the client API for Admin service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
+type AdminClient interface {
+	RunCommand(ctx context.Context, in *Command, opts ...grpc.CallOption) (*Command, error)
+}
+
+type adminClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewAdminClient(cc grpc.ClientConnInterface) AdminClient {
+	return &adminClient{cc}
+}
+
+func (c *adminClient) RunCommand(ctx context.Context, in *Command, opts ...grpc.CallOption) (*Command, error) {
+	out := new(Command)
+	err := c.cc.Invoke(ctx, "/grpcapi.Admin/RunCommand", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// AdminServer is the server API for Admin service.
+type AdminServer interface {
+	RunCommand(context.Context, *Command) (*Command, error)
+}
+
+// UnimplementedAdminServer can be embedded to have forward compatible implementations.
+type UnimplementedAdminServer struct {
+}
+
+func (*UnimplementedAdminServer) RunCommand(context.Context, *Command) (*Command, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RunCommand not implemented")
+}
+
+func RegisterAdminServer(s *grpc.Server, srv AdminServer) {
+	s.RegisterService(&_Admin_serviceDesc, srv)
+}
+
+func _Admin_RunCommand_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Command)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServer).RunCommand(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/grpcapi.Admin/RunCommand",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServer).RunCommand(ctx, req.(*Command))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+var _Admin_serviceDesc = grpc.ServiceDesc{
+	ServiceName: "grpcapi.Admin",
+	HandlerType: (*AdminServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "RunCommand",
+			Handler:    _Admin_RunCommand_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "implant.proto",
+}
+
+// ImplantClient is the client API for Implant service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
+type ImplantClient interface {
+	SendOutputs(ctx context.Context, in *Command, opts ...grpc.CallOption) (*Empty, error)
+	FetchCommand(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*Command, error)
+}
+
+type implantClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewImplantClient(cc grpc.ClientConnInterface) ImplantClient {
+	return &implantClient{cc}
+}
+
+func (c *implantClient) SendOutputs(ctx context.Context, in *Command, opts ...grpc.CallOption) (*Empty, error) {
+	out := new(Empty)
+	err := c.cc.Invoke(ctx, "/grpcapi.Implant/SendOutputs", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *implantClient) FetchCommand(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*Command, error) {
+	out := new(Command)
+	err := c.cc.Invoke(ctx, "/grpcapi.Implant/FetchCommand", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// ImplantServer is the server API for Implant service.
+type ImplantServer interface {
+	SendOutputs(context.Context, *Command) (*Empty, error)
+	FetchCommand(context.Context, *Empty) (*Command, error)
+}
+
+// UnimplementedImplantServer can be embedded to have forward compatible implementations.
+type UnimplementedImplantServer struct {
+}
+
+func (*UnimplementedImplantServer) SendOutputs(context.Context, *Command) (*Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SendOutputs not implemented")
+}
+func (*UnimplementedImplantServer) FetchCommand(context.Context, *Empty) (*Command, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method FetchCommand not implemented")
+}
+
+func RegisterImplantServer(s *grpc.Server, srv ImplantServer) {
+	s.RegisterService(&_Implant_serviceDesc, srv)
+}
+
+func _Implant_SendOutputs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Command)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ImplantServer).SendOutputs(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/grpcapi.Implant/SendOutputs",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ImplantServer).SendOutputs(ctx, req.(*Command))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Implant_FetchCommand_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ImplantServer).FetchCommand(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/grpcapi.Implant/FetchCommand",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ImplantServer).FetchCommand(ctx, req.(*Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+var _Implant_serviceDesc = grpc.ServiceDesc{
+	ServiceName: "grpcapi.Implant",
+	HandlerType: (*ImplantServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "SendOutputs",
+			Handler:    _Implant_SendOutputs_Handler,
+		},
+		{
+			MethodName: "FetchCommand",
+			Handler:    _Implant_FetchCommand_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "implant.proto",
 }
