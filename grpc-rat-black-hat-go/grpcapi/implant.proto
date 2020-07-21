@@ -1,6 +1,6 @@
 syntax = "proto3";
 package grpcapi;
-// option go_package = "implant/grpcapi";
+option go_package = "github.com/rainer37/go-fun/grpc-rat-black-hat-go/grpcapi";
 
 service Admin {
   rpc RunCommand(Command) returns (Command);
