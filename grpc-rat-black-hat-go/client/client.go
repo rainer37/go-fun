@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"github.com/google/uuid"
 	"github.com/rainer37/go-fun/grpc-rat-black-hat-go/grpcapi"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -29,6 +30,7 @@ func main()  {
 	client := grpcapi.NewAdminClient(conn)
 	var cmd = new(grpcapi.Command)
 	cmd.In = os.Args[1]
+	cmd.Id = uuid.New().String()
 	ctx := context.Background()
 	cmd, err = client.RunCommand(ctx, cmd)
 	if err != nil {

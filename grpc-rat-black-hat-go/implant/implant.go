@@ -55,13 +55,14 @@ func main()  {
 		}
 
 		go func(command *grpcapi.Command) {
-			log.Info("Running Command: ", command.In)
+			log.Infof("Running Command: [%s] from %s", command.In, command.Id)
 			c := runCmd(command.In)
 			buf, err := c.CombinedOutput()
 			if err != nil {
 				command.Out = err.Error()
 			}
 			command.Out += string(buf)
+			log.Infof("Sending Outputs: [%s] to %s", command.Out, command.Id)
 			client.SendOutputs(ctx, command)
 		}(cmd)
 	}

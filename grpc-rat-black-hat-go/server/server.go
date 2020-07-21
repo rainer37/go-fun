@@ -37,18 +37,18 @@ func NewAdminServer(work, out chan *grpcapi.Command) *adminServer {
 
 func (s *implantServer) SendOutputs(ctx context.Context, result *grpcapi.Command) (*grpcapi.Empty, error) {
 	s.output <- result
-	log.Info("sending cmd: ", result.String())
+	log.Infof("sending outputs [%s] to %s: ", result.Out, result.Id)
 	return &grpcapi.Empty{}, nil
 }
 
 func (s *adminServer) RunCommand(ctx context.Context, cmd *grpcapi.Command) (*grpcapi.Command, error) {
 	var res *grpcapi.Command
-	log.Info("running cmd: ", cmd.String())
+	log.Infof("running cmd: [%s] requested by %s", cmd.In, cmd.Id)
 	go func() {
 		s.work <- cmd
 	}()
 	res = <-s.output
-	log.Info("got output: ", res.String())
+	log.Infof("got output: [%s]", res.Out)
 	return res, nil
 }
 
@@ -57,7 +57,7 @@ func (s *implantServer) FetchCommand(ctx context.Context, empty *grpcapi.Empty) 
 	select {
 	case cmd, ok := <-s.work:
 		if ok {
-			log.Info("work work: ", cmd.String())
+			log.Infof("got work from %s doing [%s]", cmd.Id, cmd.In)
 			return cmd, nil
 		}
 	default:
