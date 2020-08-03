@@ -3,10 +3,13 @@ package client
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"github.com/rainer37/go-fun/vault-thin-client/client/secret"
 	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"net/http"
+	"strings"
 )
 
 type AuthInfo interface {
@@ -26,7 +29,7 @@ type VaultClient interface {
 	GetCachedToken() string
 	SetToken(token string) error
 	Login(method string, args []string, path string, info AuthInfo) (string, error)
-	RetrieveSecret(engine string) (string, error)
+	RetrieveSecret(engine secret.Engine, dataKey string, optionKey string) (string, error)
 }
 
 type ServerInfo struct {
@@ -50,6 +53,9 @@ func vaultHttpDo(verb, path, payload, token string) ([]byte, error) {
 		log.Error(err)
 		return nil, err
 	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, errors.New("got response from Vault, but not 200")
+	}
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
@@ -68,24 +74,42 @@ func vaultHttpDoWithParse(verb, path, payload, token string, keys []string) (str
 	}
 
 	var data map[string]interface{}
-	var value string
 	err = json.Unmarshal(result, &data)
 	if err != nil {
 		log.Error(err)
 		return string(result), err
 	}
+	lastKey := keys[len(keys)-1]
+	keys = keys[:len(keys)-1]
 
 	for _, key := range keys {
+		// log.Infof("%v %s", data, token)
 		val, ok := data[key]
 		if !ok {
 			return "", fmt.Errorf("bad key path %s at %s", keys, key)
 		}
-		if _, ok := val.(string); ok {
-			value = val.(string)
-			break
-		}
 		data = val.(map[string]interface{})
 	}
 
+	if !strings.Contains(lastKey, ":") {
+		v, ok := data[lastKey].(string)
+		if !ok {
+			return "", fmt.Errorf("bad key path %s at %s", keys, lastKey)
+		}
+		return v, nil
+	}
+
+	// parse last possible composite key
+	multiKeys := strings.Split(lastKey, ":")
+
+	value := "{"
+	for _, k := range multiKeys {
+		v, ok := data[k]
+		if !ok {
+			return "", fmt.Errorf("bad key path %s at %s", keys, k)
+		}
+		value += fmt.Sprintf("\"%s\":\"%s\",", k, v)
+	}
+	value = value[:len(value)-1] + "}"
 	return value, nil
 }

@@ -2,6 +2,7 @@ package client
 
 import (
 	"fmt"
+	"github.com/rainer37/go-fun/vault-thin-client/client/secret"
 	log "github.com/sirupsen/logrus"
 	"regexp"
 )
@@ -52,5 +53,26 @@ func (client *VaultClientV1) Login(method string, args []string, path string, in
 		return "", nil
 	}
 
+	if err := client.SetToken(token); err != nil {
+		log.Error(err)
+		return "", nil
+	}
 	return token, nil
+}
+
+func (client *VaultClientV1) RetrieveSecret(engine secret.Engine, dataKey string, optionKey string) (string, error) {
+	dataPath, err := engine.GetDataPath(dataKey)
+	if err != nil {
+		log.Error(err)
+		return "", fmt.Errorf("while getting data path on secret on %s, got %s", dataKey, err)
+	}
+
+	completeSecretPath := fmt.Sprintf("http://%s/%s", client.server.Addr, dataPath)
+	log.Info(completeSecretPath)
+	sec, err := vaultHttpDoWithParse(engine.GetVerb(), completeSecretPath, "", client.GetCachedToken(), engine.GetPathToValue(optionKey))
+	if err != nil {
+		return "", fmt.Errorf("while getting secret on %s, got %s", dataKey, err)
+	}
+
+	return sec, nil
 }

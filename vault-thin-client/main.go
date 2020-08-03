@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	vaultClient "github.com/rainer37/go-fun/vault-thin-client/client"
+	"github.com/rainer37/go-fun/vault-thin-client/client/secret"
 	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"net/http"
@@ -56,10 +57,13 @@ func main() {
 	}
 	log.Infof("Vault is running at %s...", vaultAddr)
 
-	client := vaultClient.New(vaultAddr, "")
-	token, err := client.Login("userpass", []string{"ella"}, "up", Password{"rain0908"})
+	client := vaultClient.New(vaultAddr, "s.IMBABGI2fq2socvgfVNGpuVc")
+
+	kvEngine := secret.NewKV("rainkv")
+	sec, err := client.RetrieveSecret(kvEngine, "rainsec0", "name:age")
 	if err != nil {
 		log.Error(err)
+		os.Exit(1)
 	}
-	log.Infof(token)
+	log.Infof(sec)
 }
