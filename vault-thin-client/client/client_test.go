@@ -5,17 +5,17 @@ import (
 	"testing"
 )
 
-func TestBasic(t *testing.T)  {
+func TestBasicV1(t *testing.T)  {
 	serverAddr := "127.0.0.1:8200"
 	client := New(serverAddr, "")
 
 	assert.Equal(t, client.cachedToken, "", "initial token should be empty")
 
-	err := client.setToken("token ah you?")
+	err := client.SetToken("token ah you?")
 	assert.NotNil(t, err, "should not set an invalid token")
-	assert.Equal(t, client.getToken(), "", "token should still be empty")
+	assert.Equal(t, client.GetCachedToken(), "", "token should still be empty")
 
-	err = client.setToken("s.1234566")
+	err = client.SetToken("s.1234566")
 	assert.Nil(t, err, "should be a nil token")
-	assert.Equal(t, client.getToken(), "s.1234566", "new token s.1234566 should be set set")
+	assert.Equal(t, client.GetCachedToken(), "s.1234566", "new token s.1234566 should be set set")
 }
