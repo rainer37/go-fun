@@ -3,7 +3,6 @@ package client
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/rainer37/go-fun/vault-thin-client/client/secret"
 	log "github.com/sirupsen/logrus"
@@ -53,15 +52,16 @@ func vaultHttpDo(verb, path, payload, token string) ([]byte, error) {
 		log.Error(err)
 		return nil, err
 	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, errors.New("got response from Vault, but not 200")
-	}
+
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		log.Error(err)
 		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("response from Vault, but not 200: %s", string(body))
 	}
 	return body, nil
 }
@@ -83,7 +83,7 @@ func vaultHttpDoWithParse(verb, path, payload, token string, keys []string) (str
 	keys = keys[:len(keys)-1]
 
 	for _, key := range keys {
-		// log.Infof("%v %s", data, token)
+		//log.Infof("%v %s", data, token)
 		val, ok := data[key]
 		if !ok {
 			return "", fmt.Errorf("bad key path %s at %s", keys, key)
@@ -92,9 +92,17 @@ func vaultHttpDoWithParse(verb, path, payload, token string, keys []string) (str
 	}
 
 	if !strings.Contains(lastKey, ":") {
+		vbool, ok := data[lastKey].(bool)
+		if ok {
+			if vbool {
+				return "true", nil
+			}
+			return "false", nil
+		}
+
 		v, ok := data[lastKey].(string)
 		if !ok {
-			return "", fmt.Errorf("bad key path %s at %s", keys, lastKey)
+			return "", fmt.Errorf("bad last key path %s at %s", keys, lastKey)
 		}
 		return v, nil
 	}
@@ -106,7 +114,7 @@ func vaultHttpDoWithParse(verb, path, payload, token string, keys []string) (str
 	for _, k := range multiKeys {
 		v, ok := data[k]
 		if !ok {
-			return "", fmt.Errorf("bad key path %s at %s", keys, k)
+			return "", fmt.Errorf("bad last multi key path %s at %s from %s", keys, k, multiKeys)
 		}
 		value += fmt.Sprintf("\"%s\":\"%s\",", k, v)
 	}

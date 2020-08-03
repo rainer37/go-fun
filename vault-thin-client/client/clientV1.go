@@ -68,10 +68,27 @@ func (client *VaultClientV1) RetrieveSecret(engine secret.Engine, dataKey string
 	}
 
 	completeSecretPath := fmt.Sprintf("http://%s/%s", client.server.Addr, dataPath)
-	log.Info(completeSecretPath)
+	// log.Info(completeSecretPath)
 	sec, err := vaultHttpDoWithParse(engine.GetVerb(), completeSecretPath, "", client.GetCachedToken(), engine.GetPathToValue(optionKey))
 	if err != nil {
 		return "", fmt.Errorf("while getting secret on %s, got %s", dataKey, err)
+	}
+
+	return sec, nil
+}
+
+func (client *VaultClientV1) Crypto(cryptoEngine secret.Engine, dataKey string, sourceText string) (string, error) {
+	dataPath, err := cryptoEngine.GetDataPath(dataKey)
+	if err != nil {
+		log.Error(err)
+		return "", fmt.Errorf("while getting data path on crypto on %s, got %s", dataKey, err)
+	}
+
+	completeCryptoPath := fmt.Sprintf("http://%s/%s", client.server.Addr, dataPath)
+	// log.Info(completeSecretPath)
+	sec, err := vaultHttpDoWithParse(cryptoEngine.GetVerb(), completeCryptoPath, sourceText, client.GetCachedToken(), cryptoEngine.GetPathToValue(""))
+	if err != nil {
+		return "", fmt.Errorf("while getting crypto on %s, got %s", dataKey, err)
 	}
 
 	return sec, nil

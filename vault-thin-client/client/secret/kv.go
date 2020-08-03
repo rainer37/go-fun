@@ -1,6 +1,9 @@
 package secret
 
-import "fmt"
+import (
+	"fmt"
+	"net/http"
+)
 
 type KV struct {
 	path string
@@ -15,7 +18,7 @@ func (kv *KV) GetDataPath(dataKey string) (string, error) {
 }
 
 func (kv *KV) GetVerb() string {
-	return "GET"
+	return http.MethodGet
 }
 
 func (kv *KV) GetPathToValue(optionKey string) []string {

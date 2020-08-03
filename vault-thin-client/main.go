@@ -57,13 +57,45 @@ func main() {
 	}
 	log.Infof("Vault is running at %s...", vaultAddr)
 
-	client := vaultClient.New(vaultAddr, "s.IMBABGI2fq2socvgfVNGpuVc")
+	client := vaultClient.New(vaultAddr, "s.fCxKCfBt89D80DOvKyyp7Jl6")
 
-	kvEngine := secret.NewKV("rainkv")
-	sec, err := client.RetrieveSecret(kvEngine, "rainsec0", "name:age")
+	//kvEngine := secret.NewKV("rainkv")
+	//sec, err := client.RetrieveSecret(kvEngine, "rainsec0", "name:age")
+	//if err != nil {
+	//	log.Error(err)
+	//	os.Exit(1)
+	//}
+	//log.Infof(sec)
+	//
+	//awsEngine := secret.NewAWS("someaws", "STS")
+	//sec, err = client.RetrieveSecret(awsEngine, "rainrole", "")
+	//if err != nil {
+	//	log.Error(err)
+	//	os.Exit(1)
+	//}
+	//log.Infof(sec)
+
+	toEncrypt := `{"input": "adba32=="}`
+	transitEngine := secret.NewTransit("sometransit", "sign")
+	sec, err := client.Crypto(transitEngine, "my-sign-key/sha2-512", toEncrypt)
 	if err != nil {
 		log.Error(err)
-		os.Exit(1)
+		os.Exit(-1)
 	}
 	log.Infof(sec)
+
+	transitEngine.SetPurpose("verify")
+	toDecrypt := `{"input": "adba32==","signature": "` + sec + `"}`
+	sec, err = client.Crypto(transitEngine, "my-sign-key/sha2-512", toDecrypt)
+	if err != nil {
+		log.Error(err)
+		os.Exit(-1)
+	}
+	log.Infof("%q", sec)
+	//data, err := base64.StdEncoding.DecodeString(sec)
+	//if err != nil {
+	//	fmt.Println("error:", err)
+	//	return
+	//}
+	//log.Infof("%q", data)
 }

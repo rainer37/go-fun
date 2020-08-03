@@ -3,7 +3,7 @@ VAULT_ADDR=http://127.0.0.1:8200
 auth_path=upass
 auth_path_approle=arole
 
-vault server -dev-listen-address=VAULT_ADDR &
+vault server -dev &
 
 sleep 2
 
