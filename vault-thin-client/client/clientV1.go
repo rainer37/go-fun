@@ -1,9 +1,12 @@
 package client
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/rainer37/go-fun/vault-thin-client/client/secret"
 	log "github.com/sirupsen/logrus"
+	"io/ioutil"
+	"net/http"
 	"regexp"
 )
 
@@ -92,4 +95,46 @@ func (client *VaultClientV1) Crypto(cryptoEngine secret.Engine, dataKey string, 
 	}
 
 	return sec, nil
+}
+
+func (client *VaultClientV1) WrapIt(action, toWrap, optionKey, ttl string) (string, error) {
+	wrapURL := fmt.Sprintf("http://%s/v1/sys/wrapping/%s", client.server.Addr, action)
+	req, err := http.NewRequest("POST", wrapURL, bytes.NewBuffer([]byte(toWrap)))
+
+	if err != nil {
+		log.Error(err)
+		return "", err
+	}
+
+	req.Header.Set(vaultTokenHeaderKey, client.cachedToken)
+	req.Header.Set(vaultWrappingTTL, ttl)
+
+	httpClient := &http.Client{}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		log.Error(err)
+		return "", err
+	}
+
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Error(err)
+		return "", err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("response from Vault, but not 200: %s", string(body))
+	}
+	var keys []string
+	switch action {
+	case "wrap":
+		keys = []string{"wrap_info", "token"}
+	case "rewrap":
+		keys = []string{"wrap_info", "token"}
+	case "unwrap":
+		keys = []string{"data", optionKey}
+	}
+	return jsonDrip(keys, body)
 }

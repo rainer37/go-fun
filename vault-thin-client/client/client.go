@@ -17,6 +17,7 @@ type AuthInfo interface {
 
 const authMethodBase = "v1/auth/%s/"
 const vaultTokenHeaderKey = "X-Vault-Token"
+const vaultWrappingTTL = "X-Vault-Wrap-TTL"
 
 var authMethodPathMap = map[string]string {
 	"userpass": authMethodBase + "login/%s",
@@ -72,9 +73,12 @@ func vaultHttpDoWithParse(verb, path, payload, token string, keys []string) (str
 		log.Error(err)
 		return string(result), err
 	}
+	return jsonDrip(keys, result)
+}
 
+func jsonDrip(keys []string, result []byte) (string, error) {
 	var data map[string]interface{}
-	err = json.Unmarshal(result, &data)
+	err := json.Unmarshal(result, &data)
 	if err != nil {
 		log.Error(err)
 		return string(result), err

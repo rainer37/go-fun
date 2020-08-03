@@ -98,4 +98,28 @@ func main() {
 	//	return
 	//}
 	//log.Infof("%q", data)
+	toWrap := `{"name":"rain","age":"200"}`
+	sec, err = client.WrapIt("wrap", toWrap, "", "180")
+	if err != nil {
+		log.Error(err)
+		os.Exit(-1)
+	}
+	log.Infof("%q", sec)
+
+	toWrap = `{"token":"` + sec + `"}`
+
+	sec, err = client.WrapIt("rewrap", toWrap, "", "180")
+	if err != nil {
+		log.Error(err)
+		os.Exit(-1)
+	}
+	log.Infof("%q", sec)
+
+	toWrap = `{"token":"` + sec + `"}`
+	sec, err = client.WrapIt("unwrap", toWrap, "name", "")
+	if err != nil {
+		log.Error(err)
+		os.Exit(-1)
+	}
+	log.Infof("%q", sec)
 }
