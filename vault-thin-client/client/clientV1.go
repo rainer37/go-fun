@@ -1,12 +1,8 @@
 package client
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	log "github.com/sirupsen/logrus"
-	"io/ioutil"
-	"net/http"
 	"regexp"
 )
 
@@ -49,46 +45,12 @@ func (client *VaultClientV1) Login(method string, args []string, path string, in
 	}
 
 	completeAuthPath := fmt.Sprintf("http://%s/"  + pathTemplate, client.server.Addr, path, args[0])
-	req, err := http.NewRequest("POST", completeAuthPath, bytes.NewBuffer([]byte(info.ToPayload())))
 
-	if err != nil {
-		log.Error(err)
-		return "", err
-	}
-
-	httpClient := &http.Client{}
-
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		log.Error(err)
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	var data map[string]interface{}
-
-	body, _ := ioutil.ReadAll(resp.Body)
-
-	err = json.Unmarshal(body, &data)
+	token, err := vaultHttpDoWithParse("POST", completeAuthPath, info.ToPayload(), "", []string{"auth", "client_token"})
 	if err != nil {
 		log.Error(err)
 		return "", nil
 	}
 
-	authSection, ok := data["auth"]
-	if !ok {
-		return "", fmt.Errorf("response has no auth section returned")
-	}
-
-	token, ok := authSection.(map[string]interface{})["client_token"] // Fix me
-	if !ok {
-		return "", fmt.Errorf("response has no token section returned")
-	}
-
-	if err := client.SetToken(token.(string)); err != nil {
-		log.Error(err)
-		return "", nil
-	}
-
-	return token.(string), nil
+	return token, nil
 }
